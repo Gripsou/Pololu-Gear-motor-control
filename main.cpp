@@ -13,8 +13,8 @@
   *
   * Aim
   * ---
-  * 
-  * This is a simple Motor control program for Pololu 70:1 Metal Gearmotor 
+  *
+  * This is a simple Motor control program for Pololu 70:1 Metal Gearmotor
   * 37Dx70Lmm with 64 CPR encoder. It uses an Adafruit P377 Rotary encoder to
   * set the speed and enable/disable the output.
   *
@@ -22,16 +22,16 @@
   * reason behind this coice is quite simple : easy PWM command + 5V power
   * to the system coming from the regulator. Another important point is that it
   * speeds up a lot the prototyping phase and we're short on time.
-  * 
+  *
   * The main idea is to use the motor encoder to measure the speed. Every pulse
   * from motor encoder will be counted on an interruption to ensure relevant
   * value update. Button click will be counted the same way. The control loop
   * will update the speed command value once every 1/50 second with a timer
   * interruption.
-  * 
+  *
   * Wiring
   * ------
-  * 
+  *
   * @verbatim
   *            STM32L432KC
   *            Nucleo board
@@ -53,13 +53,13 @@
   *         [ ] D10  AREF [ ]
   *         [ ] D11   3V3 [ ]
   *         [ ] D12   D13 [ ]
-  *          |             | 
-  *          +-------------+ 
+  *          |             |
+  *          +-------------+
   * @endverbatim
   *
   * Notes
   * -----
-  * 
+  *
   * At the moment we only use one of the two motor encoder ways.
   *
   * Using the 2 ways might allow us to improve the precision along with
@@ -82,9 +82,6 @@
  * ============================ MACRO & CONSTANTS =============================
  * ============================================================================
  */
- 
-//#define __ALTERNATIVE_DEBOUNCE__
-#define __THIRD_DEBOUNCE__
 
 const unsigned int COMPUTER_BUFFER_LENGTH = 256;
 const unsigned int DUTY_CYCLE_PERIOD_ms   = 1;  //!< Graupner 40R regulator runs at 1kHz (i.e. 1/1ms)
@@ -99,16 +96,6 @@ const float DUTY_CYCLE_MAX                = 1.00f;
 const float DUTY_CYCLE_MIN                = 0.00f;
 const float DUTY_CYCLE_MIDDLE             = 0.50f;
 
-/**
-  * @brief values used to define state of user rotary encoder
-  */
-typedef enum
-{
-    IN_DEFAULT,
-    IN_A,
-    IN_B,
-} encoder_channel_t;
-
 /*
  * ============================================================================
  * =============================== STRUCTURES =================================
@@ -116,7 +103,7 @@ typedef enum
  */
 
 /**
-  * @brief Makes it more easy to use send & receive buffer with any 
+  * @brief Makes it more easy to use send & receive buffer with any
   *        communication bus that uses 2 buffers (UART, SPI, I2C, ...)
   *        for these purposes.
   */
@@ -147,7 +134,7 @@ volatile int8_t user_encoder_value = 0;
 
 /**
   * Flag used to tell if A interrupt has happend before or after B.
-  * 
+  *
   * @verbatim
   *    signals
   *       ^
@@ -159,7 +146,7 @@ volatile int8_t user_encoder_value = 0;
   *       |      :
   *       +------:----------------------------> time
   *            ----> Turning Clockwise
-  * 
+  *
   *    signals
   *       ^
   *       |      :____      ____      ____
@@ -175,8 +162,6 @@ volatile int8_t user_encoder_value = 0;
 volatile bool inA_flag = false;
 volatile bool inB_flag = false;
 
-volatile encoder_channel_t first_flag = IN_DEFAULT;
-
 /**
   * Inputs & interruptions for user encoder.
   *
@@ -186,19 +171,14 @@ volatile encoder_channel_t first_flag = IN_DEFAULT;
 DigitalIn UserEncoder_inA( D11 );
 DigitalIn UserEncoder_inB( D12 );
 InterruptIn inA_triger( D11 );
-#ifndef __THIRD_DEBOUNCE__
-InterruptIn inB_triger( D12 );
-#ifdef __ALTERNATIVE_DEBOUNCE__
-Ticker encoder_update_timer;
-#endif // __ALTERNATIVE_DEBOUNCE__
-#endif // __THIRD_DEBOUNCE__
 
+// User Button related globals
 volatile bool motor_output_enable = false; //!< Ouput enable flag (value set by rotary encoder)
 DigitalIn UserEncoder_button( D9 ); //!< Input for PWM output enable
 InterruptIn button_triger( D9 ); //!< Button interruption object
 
 /**
-  * Duty cycle for moto is updated once every 1/50 seconds. This value is a 
+  * Duty cycle for moto is updated once every 1/50 seconds. This value is a
   * float which value is to be within [ 0.00 ; 1.00 ] bounadaries. 1.00 being
   * equivalent to 100 % of the duty cycle
   */
@@ -230,25 +210,25 @@ float map_value( float in, float inMin, float inMax, float outMin, float outMax 
 {
     // check it's within the range
     if( inMin < inMax )
-    { 
+    {
         if( in <= inMin )
-        {            
+        {
             return outMin;
         }
-        
+
         if( in >= inMax )
         {
             return outMax;
         }
-    } 
+    }
     else
-    {  
+    {
         // cope with input range being backwards.
-        if( in >= inMin ) 
+        if( in >= inMin )
         {
             return outMin;
         }
-        
+
         if( in <= inMax )
         {
             return outMax;
@@ -276,7 +256,7 @@ void motor_update( void )
                                   USER_INPUT_VALUE_MAX,
                                   DUTY_CYCLE_MIN,
                                   DUTY_CYCLE_MAX );
-    
+
     //! update motor duty cycle output if output enabled
     if( true == motor_output_enable )
     {
@@ -290,7 +270,7 @@ void motor_update( void )
 }
 
 /**
-  * @brief Update `motor_output_enable` value. PWM output status will be 
+  * @brief Update `motor_output_enable` value. PWM output status will be
   *        updated upon  next `motor_update` call on timer interruption.
   */
 void enable_button_behavior( void )
@@ -306,59 +286,11 @@ void enable_button_behavior( void )
 }
 
 /**
-  * @brief Update `motor_output_enable` value. PWM output status will be 
+  * @brief Update `motor_output_enable` value. PWM output status will be
   *        updated upon  next `motor_update` call on timer interruption.
   */
 void user_encoder_pulse_inA( void )
 {
-#ifndef __THIRD_DEBOUNCE__
-#ifndef __ALTERNATIVE_DEBOUNCE__
-    /**
-      * Debounce A :
-      *   - A is set if B is false and clears B everytime.
-      *   - B clears A everytime
-      *   => If A is set, then we re-enter A event handler witout going into B
-      *      which means we do not advance the encoder position
-      */
-    if( true == inA_flag )
-    {
-        return;
-    }
-    
-    //! Test whether B has been triggered before A
-    if( false == inB_flag )
-    {
-        //! A event has happend before B => increment `user_encoder_value`
-        user_encoder_value++;
-        if( USER_INPUT_VALUE_MAX < user_encoder_value )
-        {
-            user_encoder_value = USER_INPUT_VALUE_MAX; 
-        }
-        
-        // Set A flag for coming B event
-        inB_flag = true;
-    }
-    else
-    {
-        //! B event has happend before A => decrement `user_encoder_value`
-        user_encoder_value--;
-        if( USER_INPUT_VALUE_MIN > user_encoder_value )
-        {
-            user_encoder_value = USER_INPUT_VALUE_MIN;
-        }
-    }
-    
-    //! Clear B flags for next round
-    inB_flag = false;
-#else // means __ALTERNATIVE_DEBOUNCE__ is defined
-    if( false == inB_flag )
-    {
-        first_flag = IN_A; 
-    }
-    
-    inA_flag = true;
-#endif // __ALTERNATIVE_DEBOUNCE__
-#else // i.e. __THIRD_DEBOUNCE__ is defined
     if( 0 == UserEncoder_inB.read( ) )
     {
         // B is already down => B before A => decrement
@@ -374,88 +306,17 @@ void user_encoder_pulse_inA( void )
         user_encoder_value++;
         if( USER_INPUT_VALUE_MAX < user_encoder_value )
         {
-            user_encoder_value = USER_INPUT_VALUE_MAX; 
+            user_encoder_value = USER_INPUT_VALUE_MAX;
         }
     }
-#endif // __THIRD_DEBOUNCE__
 }
 
 /**
-  * @brief Update `motor_output_enable` value. PWM output status will be 
-  *        updated upon  next `motor_update` call on timer interruption.
-  */
-void user_encoder_pulse_inB( void )
-{
-#ifndef __ALTERNATIVE_DEBOUNCE__
-    /**
-      * Debounce B :
-      *   - B is set if A is false and clears A everytime.
-      *   - A clears B everytime
-      *   => If B is set, then we re-enter B event handler witout going into A
-      *      which means we do not advance
-      */
-    if( true == inB_flag )
-    {
-        return;
-    }
-    
-    // Set B flag if A event has not happened yet
-    if( false == inA_flag )
-    {
-        inB_flag = true;
-    }
-    
-    // Clear A flag for next round
-    inA_flag = false;
-#else // means __ALTERNATIVE_DEBOUNCE__ is defined
-    if( false == inA_flag )
-    {
-        first_flag = IN_B; 
-    }
-    
-    inB_flag = true;
-#endif // __ALTERNATIVE_DEBOUNCE__
-}
-
-void user_encoder_value_update( void )
-{
-#ifdef __ALTERNATIVE_DEBOUNCE__
-    // Check that the 2 flags have been set (for debounce purpose)
-    if( ( true == inA_flag ) &&
-        ( true == inB_flag )   )
-    {
-        /**
-          * Increment or decrement `user_encoder_value` depending on if the
-          * first event to happen is A or B.
-          * 
-          * Do not use an `else` statement to avoid potential case where
-          * `first_flag` is `IN_DEFAULT`
-          */
-        if( IN_A == first_flag )
-        {
-            user_encoder_value++;
-        }
-        
-        if( IN_B == first_flag )
-        {
-            user_encoder_value--;
-        }
-    }
-    
-    // Clear all flags for next round
-    first_flag = IN_DEFAULT;
-    inA_flag = false;
-    inB_flag = false;
-#endif // __ALTERNATIVE_DEBOUNCE__
-}
-
-/** 
   * @brief Count pulses from motor
   */
 void motor_pulses( void )
 {
-#ifdef __THIRD_DEBOUNCE__
-        if( 1 == motor_ticks_A.read( ) )
+    if( 1 == motor_ticks_B.read( ) )
     {
         // B is already down => B before A => decrement
         motor_pulse_count--;
@@ -465,9 +326,6 @@ void motor_pulses( void )
         //! A down before B => increment `user_encoder_value`
         motor_pulse_count++;
     }
-#else // __THIRD_DEBOUNCE__ is not defined
-     motor_pulse_count++;
-#endif
 }
 
 /*
@@ -482,47 +340,37 @@ void motor_pulses( void )
 int main( void )
 {
     // ---- Setup -----
-    
+
     // PC communication init to null character
     memset( &computer, 0x00, sizeof( computer ) );
-    
+
+    // ~~~ Duty Cycle pin & update interrupt ~~~
     // Set period of PWM for Graupner 40R regulator at 1kHz (i.e. 1/1ms)
     motor.period_ms( DUTY_CYCLE_PERIOD_ms );
     // Set PWM to middle ground for Graupner 40R regulator
     motor.write( DUTY_CYCLE_MIDDLE ); // 50 % of duty cycle
-    
+    // Timer interrupt timing and interruption handler
     timer.attach( motor_update, TIMER_PERIOD_sec );
-    
-    // Setup digital inputs
+
+    // ~~~ Setup digital inputs for user rotary encoder ~~~
     UserEncoder_inA.mode( PullUp );
     UserEncoder_inB.mode( PullUp );
-    UserEncoder_button.mode( PullUp );
-    
     inA_triger.fall( &user_encoder_pulse_inA );
-#ifndef __THIRD_DEBOUNCE__
-    inA_triger.rise( &user_encoder_value_update );
-#endif // __THIRD_DEBOUNCE__
-#ifdef __ALTERNATIVE_DEBOUNCE__
-    inB_triger.fall( &user_encoder_pulse_inB );
-#endif // __ALTERNATIVE_DEBOUNCE__
 
-#ifdef  __ALTERNATIVE_DEBOUNCE__
-    //setup `encoder_update_timer` for buton state update
-    encoder_update_timer.attach( &user_encoder_value_update, ( TIMER_PERIOD_sec / 2 ) );
-#endif // __ALTERNATIVE_DEBOUNCE__
-
+    // ~~~ Setup User Button mode and attach interrupt handler ~~~
+    UserEncoder_button.mode( PullUp );
     button_triger.fall( &enable_button_behavior );
-    
-    // setup inputs and interupts for motor control
+
+    // ~~~ Setup inputs and interupts for motor control ~~~
     motor_ticks_A.mode( PullUp );
     motor_ticks_B.mode( PullUp );
     motor_ticks.rise( &motor_pulses );
-    
+
     // Setup is finished => send splashscreen to terminal
     printf( "----------------------------\n"
             "--- Pololu Motor Control ---\n"
             "----------------------------\n" );
-    
+
     // ---- Infinite loop ----
     while( 1 )
     {
@@ -530,12 +378,12 @@ int main( void )
 
         // Reset PC communication Tx buffer
         memset( &computer, 0x00, sizeof( computer ) );
-        
+
         // copy sentence to output buffer
-        snprintf( computer.Tx, sizeof( computer.Tx ), 
-                  "Encoder : %d\nDuty cycle: %+1.2f\nMotor Ticks : %d\n", 
+        snprintf( computer.Tx, sizeof( computer.Tx ),
+                  "Encoder : %d\nDuty cycle: %+1.2f\nMotor Ticks : %d\n",
                   user_encoder_value, motor_duty_cycle, motor_pulse_count );
-        
+
         // Conditionnal append to buffer
         if( true == motor_output_enable )
         {
@@ -545,7 +393,7 @@ int main( void )
         {
             strcat( computer.Tx, "Output : DISABLED\n" );
         }
-        
+
         // Throw output sentence to PC
         printf( computer.Tx );
     }
