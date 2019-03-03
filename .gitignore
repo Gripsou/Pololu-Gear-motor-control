@@ -1,0 +1,8 @@
+/Debug/
+### Target build directory
+BUILD/
+### binary program file generated at the project root
+**.bin
+### Keil uVision user specific files
+*.log
+*.uvguix.*
